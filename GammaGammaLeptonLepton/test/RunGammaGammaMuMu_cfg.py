@@ -15,7 +15,7 @@ process.options   = cms.untracked.PSet(
     SkipEvent = cms.untracked.vstring('ProductNotFound')
 )
 
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(50) )
 #process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000) )
 #process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
@@ -26,25 +26,25 @@ process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring(
 
 '/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/080636C6-723B-E611-92AB-02163E01429D.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/16858380-6F3B-E611-AE0A-02163E0118AD.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/3A85B622-713B-E611-8BA0-02163E011A7C.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/4ADDCF1D-6D3B-E611-8674-02163E0138F1.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/582C24A7-733B-E611-88D2-02163E0133C5.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/666D4E0A-6F3B-E611-B6C0-02163E01383E.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/7E013031-6F3B-E611-9FCF-02163E0137D8.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/A433FE41-743B-E611-B494-02163E0133AD.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/BE0F4FD7-793B-E611-B6DB-02163E0140FB.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/BE7447BE-803B-E611-BA73-02163E014417.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/C8AF2067-693B-E611-AF0D-02163E011E25.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/CA0F96A1-6B3B-E611-B25C-02163E014417.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/D2ACF96A-713B-E611-9133-02163E013839.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/DCD3A6F9-6D3B-E611-BD12-02163E013802.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/E0A72A4A-763B-E611-B27D-02163E01439B.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/E2C84243-793B-E611-B492-02163E014655.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/E84C6A2A-7C3B-E611-BC92-02163E011942.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/F41A11F9-773B-E611-A30D-02163E013802.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/F66395A8-713B-E611-8E3F-02163E011DD7.root',
-'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/FCF024C6-773B-E611-9FDB-02163E01452A.root'
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/16858380-6F3B-E611-AE0A-02163E0118AD.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/3A85B622-713B-E611-8BA0-02163E011A7C.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/4ADDCF1D-6D3B-E611-8674-02163E0138F1.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/582C24A7-733B-E611-88D2-02163E0133C5.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/666D4E0A-6F3B-E611-B6C0-02163E01383E.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/7E013031-6F3B-E611-9FCF-02163E0137D8.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/A433FE41-743B-E611-B494-02163E0133AD.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/BE0F4FD7-793B-E611-B6DB-02163E0140FB.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/BE7447BE-803B-E611-BA73-02163E014417.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/C8AF2067-693B-E611-AF0D-02163E011E25.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/CA0F96A1-6B3B-E611-B25C-02163E014417.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/D2ACF96A-713B-E611-9133-02163E013839.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/DCD3A6F9-6D3B-E611-BD12-02163E013802.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/E0A72A4A-763B-E611-B27D-02163E01439B.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/E2C84243-793B-E611-B492-02163E014655.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/E84C6A2A-7C3B-E611-BC92-02163E011942.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/F41A11F9-773B-E611-A30D-02163E013802.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/F66395A8-713B-E611-8E3F-02163E011DD7.root',
+#'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/FCF024C6-773B-E611-9FDB-02163E01452A.root'
 
 #                                '/store/data/Run2016C/SingleMuon/AOD/PromptReco-v2/000/275/774/00000/BEDEAA86-7B3C-E611-B7A4-02163E013787.root'
 
