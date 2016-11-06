@@ -5,10 +5,10 @@
 // 
 /**\class GammaGammaEE GammaGammaEE.cc DiffractiveForwardAnalysis/GammaGammaLeptonLepton/src/GammaGammaEE.cc
 
- Description: [one line class summary]
+Description: [one line class summary]
 
- Implementation:
-     [Notes on implementation]
+Implementation:
+[Notes on implementation]
 */
 //
 // Original Author:  Laurent Forthomme,40 4-B20,+41227671567,
@@ -41,47 +41,54 @@ const float cut_EE_HoverE        = 0.025;
 //
 // constructors and destructor
 //
-GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig)
+GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig):
+  // Electron Map
+  eleToken_           (consumes< edm::View<pat::Electron> >       (iConfig.getUntrackedParameter<edm::InputTag>("GlobalEleCollectionLabel", std::string("gsfElectrons")))),
+  eleLooseIdMap_ (consumes< edm::ValueMap<bool> >            (iConfig.getParameter<edm::InputTag>("eleLooseIdMap"))),
+  eleMediumIdMap_(consumes< edm::ValueMap<bool> >            (iConfig.getParameter<edm::InputTag>("eleMediumIdMap"))),
+  eleTightIdMap_ (consumes< edm::ValueMap<bool> >            (iConfig.getParameter<edm::InputTag>("eleTightIdMap")))
 {
+
   //now do what ever initialization is needed
-  _fetchMuons = false;
+  _fetchElectrons = true;
+
   outputFile_ = iConfig.getUntrackedParameter<std::string>("outfilename", "output.root");
-  
+
   hltMenuLabel_ = iConfig.getParameter<std::string>("HLTMenuLabel");
   triggersList_ = iConfig.getParameter<std::vector<std::string> >("TriggersList");
   _hlts = new HLTmatches(triggersList_);
   nHLT = triggersList_.size();
-	
+
   recoVertexLabel_ = iConfig.getParameter<edm::InputTag>("RecoVertexLabel");
-  
-  // Generator level
+
+  // Generator Level
   sqrts_ = iConfig.getParameter<Double_t>("SqrtS");
   runOnMC_ = iConfig.getUntrackedParameter<bool>("RunOnMC", true);
   runOnProtons_ = iConfig.getUntrackedParameter<bool>("RunOnProtons", true);
   genLabel_ = iConfig.getParameter<edm::InputTag>("GenParticlesCollectionLabel");
   minPtMC_ = iConfig.getUntrackedParameter<Double_t>("MCAcceptPtCut", 20.);
   minEtaMC_ = iConfig.getUntrackedParameter<Double_t>("MCAcceptEtaCut", 2.5);
-  
+
   // Pileup input tags
   pileupLabel_ = iConfig.getUntrackedParameter<edm::InputTag>("pileupInfo", std::string("addPileupInfo"));
   mcPileupFile_ = iConfig.getUntrackedParameter<std::string>("mcpufile", "MCPUdist_2016.root");
   mcPileupPath_ = iConfig.getUntrackedParameter<std::string>("mcpupath", "pileup");
   dataPileupFile_ = iConfig.getUntrackedParameter<std::string>("datapufile", "MyDataPileupHistogram.root");
   dataPileupPath_ = iConfig.getUntrackedParameter<std::string>("datapupath", "pileup");
-  
+
   // Leptons input tags
   leptonsType_ = iConfig.getParameter< std::vector<std::string> >("LeptonsType");
   for (i=0; i<leptonsType_.size(); i++) {
-    if (leptonsType_[i]=="Muon") _fetchMuons = true;
+    if (leptonsType_[i]=="Electron") _fetchElectrons = true;
   }
-  muonLabel_ = iConfig.getUntrackedParameter<edm::InputTag>("GlobalMuonCollectionLabel", std::string("muons"));
-  //  rhoIsoLabel_ = iConfig.getParameter<edm::InputTag>("rhoIsoInputTag");
+
   printCandidates_ = iConfig.getUntrackedParameter<bool>("PrintCandidates", false);
   trackLabel_ = iConfig.getUntrackedParameter<edm::InputTag>("TrackCollectionLabel", std::string("generalTracks"));
-  
+
   file = new TFile(outputFile_.c_str(), "recreate");
   file->cd();
-  // tree definition
+
+  // Tree definition
   tree = new TTree("ntp1", "ntp1");
 
   // PU reweighting
@@ -91,23 +98,17 @@ GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig)
 
   consumes<edm::TriggerResults>(edm::InputTag("TriggerResults","","HLT"));  
   consumes<reco::VertexCollection>(edm::InputTag("offlinePrimaryVertices"));  
-  consumes<reco::MuonCollection>(edm::InputTag("muons"));   
+  consumes<edm::View<pat::Electron>>(edm::InputTag("gsfElectrons"));
   consumes<reco::TrackCollection>(edm::InputTag("generalTracks"));    
   consumes<std::vector<PileupSummaryInfo>>(edm::InputTag("addPileupInfo"));
   consumes<std::vector<reco::GenParticle>>(edm::InputTag("genParticles"));
-  //  tokenRPLocalTrack = consumes< edm::DetSetVector<TotemRPLocalTrack> >(edm::InputTag("tagLocalTrack")); 
   tokenRPLocalTrack = consumes< edm::DetSetVector<TotemRPLocalTrack> >(edm::InputTag("totemRPLocalTrackFitter"));
-
-  //  consumes<std::vector<reco::Vertex>>(edm::InputTag("offlinePrimaryVertices","","")); 
 
 }
 
 
 GammaGammaEE::~GammaGammaEE()
 {
- 
-  // do anything here that needs to be done at desctruction time
-  // (e.g. close files, deallocate resources etc.)
 
   file->Write();
   file->Close();
@@ -122,44 +123,35 @@ GammaGammaEE::~GammaGammaEE()
 // member functions
 //
 
-void
+  void
 GammaGammaEE::LookAtTriggersEE(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
   Int_t trigNum;
-	
+
   // Get the trigger information from the event
   iEvent.getByLabel(edm::InputTag("TriggerResults","",hltMenuLabel_),hltResults_) ; 
   const edm::TriggerNames & trigNames = iEvent.triggerNames(*hltResults_);
 
   for (unsigned int i=0; i<trigNames.size(); i++) {
-    //std::cout << "--> " << trigNames.triggerNames().at(i) << std::endl;
     trigNum = _hlts->TriggerNum(trigNames.triggerNames().at(i));
     if (trigNum==-1) continue; // Trigger didn't match the interesting ones
     HLT_Accept[trigNum] = hltResults_->accept(i) ? 1 : 0;
-    //    HLT_Prescl[trigNum] = hltConfig_.prescaleValue(iEvent, iSetup, trigNames.triggerNames().at(i));
-    
-    //LF FIXME need to think about that implementation...
-    /*if (trigNames.triggerNames().at(i).find("CaloIdL")) {} // Leading lepton
-      else if (trigNames.triggerNames().at(i).find("CaloIdT")) {} // Trailing lepton*/
-    //std::cout << "*-------> " << trigNames.triggerNames().at(i).substr(0, trigNames.triggerNames().at(i).find_last_of("_"));
-    //HLT_LeadingLepton_Prescl[] = hltConfig_.prescaleValue(event, iSetup, "HLT_Mu8Ele17L");  
+
   }
 }
 
 // ------------ method called for each event  ------------
-void
+  void
 GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 {
   using namespace edm;
-  //std::cout << "Beginning First init" << std::endl;
 
   // First initialization of the variables
   nCandidatesInEvent = 0;
   nPrimVertexCand = nFilteredPrimVertexCand = 0;
-  nMuonCand = nLeptonCand = 0;
+  nElectronCand = nLeptonCand = 0;
   nExtraTracks = nQualityExtraTrack = 0;
-  nJetCand = 0;
-  nGenMuonCand = nGenMuonCandOutOfAccept = 0;
+  nGenElectronCand = nGenElectronCandOutOfAccept = 0;
   nGenProtCand = 0;
   nLocalProtCand = 0;
 
@@ -168,19 +160,13 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   closesttrkdxyz = closesthighpuritytrkdxyz = 999.;
   closestkalmantrkdxyz = 999.;
-  for (i=0; i<MAX_LL; i++) {
-    MuonCand_p[i] = MuonCand_px[i] = MuonCand_py[i] = MuonCand_pz[i] = -999.;
-    MuonCand_pt[i] = MuonCand_eta[i] = MuonCand_phi[i] = -999.;
-    MuonCand_innerTrackPt[i] = MuonCand_innerTrackEta[i] = MuonCand_innerTrackPhi[i] = -999.;
 
-    MuonCand_charge[i] = -999;
-    MuonCand_vtxx[i] = MuonCand_vtxy[i] = MuonCand_vtxz[i] = -999.;
-    MuonCand_npxlhits[i] = MuonCand_nstatseg[i] = MuonCand_ntrklayers[i] = -999;
-    MuonCand_dxy[i] = MuonCand_dz[i] = -999.;
-    MuonCand_isglobal[i] = MuonCand_istracker[i] = MuonCand_isstandalone[i] = MuonCand_ispfmuon[i] = -999;
-    MuonCand_istight[i] = -999;
-    MuonCandTrack_nmuchits[i] = -999;
-    MuonCandTrack_chisq[i] = -999.;
+  for (i=0; i<MAX_LL; i++) {
+    ElectronCand_p[i] = ElectronCand_px[i] = ElectronCand_py[i] = ElectronCand_pz[i] = -999.;
+    ElectronCand_pt[i] = ElectronCand_eta[i] = ElectronCand_phi[i] = -999.;
+    ElectronCand_innerTrackPt[i] = ElectronCand_innerTrackEta[i] = ElectronCand_innerTrackPhi[i] = -999.;
+    ElectronCand_charge[i] = -999;
+    ElectronCand_vtxx[i] = ElectronCand_vtxy[i] = ElectronCand_vtxz[i] = -999.;
   }
   for (i=0; i<MAX_ET; i++) {
     ExtraTrack_p[i] = ExtraTrack_px[i] = ExtraTrack_py[i] = ExtraTrack_pz[i] = -999.;
@@ -217,65 +203,49 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     LocalProtCand_TySigma[nLocalProtCand] = -999.;
   }
 
-  // JH
   KalmanVertexCand_x = KalmanVertexCand_y = KalmanVertexCand_z = -999.;
   ClosestExtraTrackKalman_vtxdxyz = 999.;
-  
   Weight = 1.;
-  
+
   foundPairInEvent = false;
   foundGenCandPairInEvent = false;
-  
-  muonsMomenta.clear();
   electronsMomenta.clear();
-  
   _leptonptmp = new TLorentzVector();
-  
+
   // Run and BX information
   BX = iEvent.bunchCrossing();
   Run = iEvent.id().run();
   LumiSection = iEvent.luminosityBlock();
   EventNum = iEvent.id().event();
-  
+
   // High level trigger information retrieval  
   LookAtTriggersEE(iEvent, iSetup);
-  
-  // beam spot information
-  //  iEvent.getByLabel(beamSpotLabel_, beamspot_h);
-  //  const reco::BeamSpot &beamSpot = *(beamspot_h.product());
 
   // Get the vertex collection from the event
   iEvent.getByLabel(recoVertexLabel_, recoVertexColl);
   const reco::VertexCollection* vertices = recoVertexColl.product();
 
-  // rho for isolation 
-  //  iEvent.getByLabel(rhoIsoLabel_, rhoIso_h); 
-  //  rhoIso = *(rhoIso_h.product()); 
-  
-  //std::cout << "Passed Isolation" << std::endl;
-
-
   // Generator level information
   if (runOnMC_) {
     iEvent.getByLabel(genLabel_, genPartColl);
-    
+
     for (genPart=genPartColl->begin(); genPart!=genPartColl->end(); genPart++) {
       if (genPart->pt()<minPtMC_ || (minEtaMC_!=-1. && fabs(genPart->eta())>minEtaMC_)) {
-        if (fabs(genPart->pdgId())==13) nGenMuonCandOutOfAccept++;
-        if (fabs(genPart->pdgId())==22) nGenPhotCandOutOfAccept++;
-        continue;
+	if (fabs(genPart->pdgId())==13) nGenElectronCandOutOfAccept++;
+	if (fabs(genPart->pdgId())==22) nGenPhotCandOutOfAccept++;
+	continue;
       }
       if (genPart->pdgId()!=2212 && genPart->status()!=1) continue;
-      if (fabs(genPart->pdgId())==13 && nGenMuonCand<MAX_GENMU) {
-        GenMuonCand_p[nGenMuonCand] = genPart->p();
-        GenMuonCand_px[nGenMuonCand] = genPart->px();
-        GenMuonCand_py[nGenMuonCand] = genPart->py();
-        GenMuonCand_pz[nGenMuonCand] = genPart->pz();
-        GenMuonCand_pt[nGenMuonCand] = genPart->pt();
-        GenMuonCand_eta[nGenMuonCand] = genPart->eta();
-        GenMuonCand_phi[nGenMuonCand] = genPart->phi();
-        
-        nGenMuonCand++;
+      if (fabs(genPart->pdgId())==13 && nGenElectronCand<MAX_GENMU) {
+	GenElectronCand_p[nGenElectronCand] = genPart->p();
+	GenElectronCand_px[nGenElectronCand] = genPart->px();
+	GenElectronCand_py[nGenElectronCand] = genPart->py();
+	GenElectronCand_pz[nGenElectronCand] = genPart->pz();
+	GenElectronCand_pt[nGenElectronCand] = genPart->pt();
+	GenElectronCand_eta[nGenElectronCand] = genPart->eta();
+	GenElectronCand_phi[nGenElectronCand] = genPart->phi();
+
+	nGenElectronCand++;
       }
 
       if (genPart->pdgId()==2212 && nGenProtCand<MAX_GENPRO) { 
@@ -288,43 +258,37 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	GenProtCand_eta[nGenProtCand] = genPart->eta(); 
 	GenProtCand_phi[nGenProtCand] = genPart->phi(); 
 	GenProtCand_status[nGenProtCand] = genPart->status(); 
- 
+
 	double xi = 1 - ((genPart->energy())/(sqrts_/2.0)); 
 	double t = -(std::pow(genPart->pt(), 2)); 
- 
+
 	GenProtCand_xi[nGenProtCand] = xi; 
 	GenProtCand_t[nGenProtCand] = t; 
-       
+
 	nGenProtCand++; 
       } 
 
 
       foundGenCandPairInEvent = false;
-      if (_fetchMuons) { // Looks at dimuons
-        if(nGenMuonCand!=2) continue; // FIXME maybe a bit tight according to the newer PU conditions?
-        l1.SetXYZM(GenMuonCand_px[0], GenMuonCand_py[0], GenMuonCand_pz[0], MASS_MU);      	
-        l2.SetXYZM(GenMuonCand_px[1], GenMuonCand_py[1], GenMuonCand_pz[1], MASS_MU);      	
-        foundGenCandPairInEvent = true;      	
+      if (_fetchElectrons) { // Looks at dielectrons
+	if(nGenElectronCand!=2) continue; // FIXME maybe a bit tight according to the newer PU conditions?
+	l1.SetXYZM(GenElectronCand_px[0], GenElectronCand_py[0], GenElectronCand_pz[0], MASS_E);      	
+	l2.SetXYZM(GenElectronCand_px[1], GenElectronCand_py[1], GenElectronCand_pz[1], MASS_E);      	
+	foundGenCandPairInEvent = true;      	
       }
       if (foundGenCandPairInEvent) {
-        pair = l1+l2;
-        GenPair_p = pair.P();
-        GenPair_pt = pair.Pt();
-        GenPair_mass = pair.M();
-        GenPair_phi = pair.Phi();
-        GenPair_eta = pair.Eta();
-        dphi = fabs(l1.Phi()-l2.Phi());
-        GenPair_dphi = (dphi<pi) ? dphi : 2.*pi-dphi; // dphi lies in [-pi, pi]
-        GenPair_dpt = fabs(l1.Pt()-l2.Pt());
-        GenPair_3Dangle = (l1.Angle(l2.Vect()))/pi;
+	pair = l1+l2;
+	GenPair_p = pair.P();
+	GenPair_pt = pair.Pt();
+	GenPair_mass = pair.M();
+	GenPair_phi = pair.Phi();
+	GenPair_eta = pair.Eta();
+	dphi = fabs(l1.Phi()-l2.Phi());
+	GenPair_dphi = (dphi<pi) ? dphi : 2.*pi-dphi; // dphi lies in [-pi, pi]
+	GenPair_dpt = fabs(l1.Pt()-l2.Pt());
+	GenPair_3Dangle = (l1.Angle(l2.Vect()))/pi;
       }
-      //      if(genPart->pdgId()==2212 && fabs(genPart->pz())>3000.) {
-        // Kinematic quantities computation
-        // xi = fractional momentum loss
-	//        if (genPart->pz()>0.) xi = 1.-genPart->pz()/sqrts_;
-	//        else xi = 1.+genPart->pz()/sqrts_;
-	//        t = -(std::pow(genPart->pt(), 2)+std::pow(MASS_P*xi, 2))/(1.-xi);
-      //      }
+
     }
   }
 
@@ -344,20 +308,15 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
       if(beamXing == -1) npvm1true+=npvtrue;
       if(beamXing == 0) {
-        npv0 += npv;
-        npv0true += npvtrue;
+	npv0 += npv;
+	npv0true += npvtrue;
       }
       if(beamXing == 1) npvp1true+=npvtrue;
     }
     nTruePUforPUWeightBX0 = npv0true;
-    //
-
-    //    std::cout << "\t\tJH: Creating iEventB" << std::endl;
-    //    const edm::EventBase* iEventB = dynamic_cast<const edm::EventBase*>(&iEvent);
-    //   Weight = LumiWeights->weight(*iEventB);
     Weight = LumiWeights->weight( nTruePUforPUWeightBX0 );
   }
-  
+
   std::vector<reco::TransientTrack> translepttrks;  
   reco::TrackCollection * lepttrks = new reco::TrackCollection;  
   edm::ESHandle<TransientTrackBuilder> theKalVtx;  
@@ -366,289 +325,290 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   // RP
   if(runOnProtons_)
+  {
+    // Placeholder for more awesome stuff
+
+    edm::Handle< edm::DetSetVector<TotemRPLocalTrack> > rplocaltracks; 
+    iEvent.getByToken(tokenRPLocalTrack, rplocaltracks); 
+
+    for (auto &ds1 : *rplocaltracks)
     {
-      // Placeholder for more awesome stuff
+      for (auto &tr1 : ds1)
+      {
+	if (! tr1.isValid())
+	  continue;
 
-      edm::Handle< edm::DetSetVector<TotemRPLocalTrack> > rplocaltracks; 
-      iEvent.getByToken(tokenRPLocalTrack, rplocaltracks); 
-      
-      for (auto &ds1 : *rplocaltracks)
-	{
-	  for (auto &tr1 : ds1)
-	    {
-	      if (! tr1.isValid())
-		continue;
-	      
-	      LocalProtCand_x[nLocalProtCand] = (tr1.getX0())/1000.0;
-	      LocalProtCand_y[nLocalProtCand] = (tr1.getY0())/1000.0; 
-	      LocalProtCand_z[nLocalProtCand] = (tr1.getZ0())/1000.0; 
-	      LocalProtCand_xSigma[nLocalProtCand] = (tr1.getX0Sigma())/1000.0;
-              LocalProtCand_ySigma[nLocalProtCand] = (tr1.getY0Sigma())/1000.0; 
-              LocalProtCand_Tx[nLocalProtCand] = tr1.getTx();  
-              LocalProtCand_Ty[nLocalProtCand] = tr1.getTy();   
-	      LocalProtCand_TxSigma[nLocalProtCand] = tr1.getTxSigma(); 
-              LocalProtCand_TySigma[nLocalProtCand] = tr1.getTySigma();  
+	LocalProtCand_x[nLocalProtCand] = (tr1.getX0())/1000.0;
+	LocalProtCand_y[nLocalProtCand] = (tr1.getY0())/1000.0; 
+	LocalProtCand_z[nLocalProtCand] = (tr1.getZ0())/1000.0; 
+	LocalProtCand_xSigma[nLocalProtCand] = (tr1.getX0Sigma())/1000.0;
+	LocalProtCand_ySigma[nLocalProtCand] = (tr1.getY0Sigma())/1000.0; 
+	LocalProtCand_Tx[nLocalProtCand] = tr1.getTx();  
+	LocalProtCand_Ty[nLocalProtCand] = tr1.getTy();   
+	LocalProtCand_TxSigma[nLocalProtCand] = tr1.getTxSigma(); 
+	LocalProtCand_TySigma[nLocalProtCand] = tr1.getTySigma();  
 
-	      nLocalProtCand++; 
-	    }
-	}
-    }
-
-  // Get the muons collection from the event
-  if (_fetchMuons) {
-    iEvent.getByLabel(muonLabel_, muonColl);
-    for (muon=muonColl->begin(); muon!=muonColl->end() && nMuonCand<MAX_MUONS; muon++) {
-      MuonCand_p[nMuonCand] = muon->p();
-      MuonCand_px[nMuonCand] = muon->px();
-      MuonCand_py[nMuonCand] = muon->py();
-      MuonCand_pz[nMuonCand] = muon->pz();
-      MuonCand_pt[nMuonCand] = muon->pt();
-      MuonCand_eta[nMuonCand] = muon->eta();
-      MuonCand_phi[nMuonCand] = muon->phi();
-      MuonCand_charge[nMuonCand] = muon->charge();
-      //      MuonCand_dxy[nMuonCand] = muon->dB();
-      MuonCand_dxy[nMuonCand] = 0;
-      MuonCand_nstatseg[nMuonCand] = muon->numberOfMatchedStations();
-      
-      MuonCand_isglobal[nMuonCand] = muon->isGlobalMuon();
-      MuonCand_istracker[nMuonCand] = muon->isTrackerMuon();
-      MuonCand_isstandalone[nMuonCand] = muon->isStandAloneMuon();
-      MuonCand_ispfmuon[nMuonCand] = muon->isPFMuon();
-
-      if((MuonCand_isglobal[nMuonCand] == 1) || (MuonCand_istracker[nMuonCand] == 1)) 
-	{
-	  MuonCand_innerTrackPt[nMuonCand] = muon->innerTrack()->pt(); 
-	  MuonCand_innerTrackEta[nMuonCand] = muon->innerTrack()->eta();  
-	  MuonCand_innerTrackPhi[nMuonCand] = muon->innerTrack()->phi();  
-
-	  _leptonptmp->SetXYZM(muon->innerTrack()->px(), muon->innerTrack()->py(), muon->innerTrack()->pz(), muon->mass());
-          // JH - use 2 highest pT muons for vertexing
-	  if(nMuonCand < 2)
-	    {
-	      lepttrks->push_back (*(muon->innerTrack()));
-	      reco::TransientTrack tmptrk = (*theKalVtx).build( *(muon->innerTrack() ) ); 
-	      translepttrks.push_back( tmptrk ); 
-	    }
-	}
-      else
-	{
-	  _leptonptmp->SetXYZM(muon->px(), muon->py(), muon->pz(), muon->mass());
-	  MuonCand_innerTrackPt[nMuonCand] = -999.;
-	  MuonCand_innerTrackEta[nMuonCand] = -999.;
-	  MuonCand_innerTrackPhi[nMuonCand] = -999.;
-	}
-
-      muonsMomenta.insert(std::pair<Int_t,TLorentzVector>(nMuonCand, *_leptonptmp));
-      
-      MuonCand_vtxx[nMuonCand] = muon->vertex().x();
-      MuonCand_vtxy[nMuonCand] = muon->vertex().y();
-      MuonCand_vtxz[nMuonCand] = muon->vertex().z();
-      
-      if (MuonCand_istracker[nMuonCand]) {
-	MuonCand_npxlhits[nMuonCand] = muon->innerTrack()->hitPattern().numberOfValidPixelHits();
-	MuonCand_ntrklayers[nMuonCand] = muon->innerTrack()->hitPattern().trackerLayersWithMeasurement();
+	nLocalProtCand++; 
       }
-
-      if (MuonCand_isglobal[nMuonCand] && MuonCand_istracker[nMuonCand]) {
-	MuonCandTrack_nmuchits[nMuonCand] = muon->globalTrack()->hitPattern().numberOfValidMuonHits();
-	MuonCandTrack_chisq[nMuonCand] = muon->globalTrack()->normalizedChi2();
-	istight = true;
-	istight&= MuonCand_ispfmuon[nMuonCand];
-	istight&= (MuonCandTrack_chisq[nMuonCand]<10.);
-	istight&= (MuonCandTrack_nmuchits[nMuonCand]>=1);
-	istight&= (MuonCand_nstatseg[nMuonCand]>=2);
-	istight&= (MuonCand_dxy[nMuonCand]<.2);
-	istight&= (MuonCand_npxlhits[nMuonCand]>0);
-	istight&= (MuonCand_ntrklayers[nMuonCand]>5);
-	MuonCand_istight[nMuonCand] = istight;
-      } 
-
-      nMuonCand++;
     }
   }
-  
-  // JH 
-  // If 2 muons, make a vertex and compute pair quantities from the leading 2
-  // For now we do this "outside-in", rather than starting from the list of offlinePrimaryVertices and looking for muons
-  if(translepttrks.size() >= 2)
-    {
-      l1.SetXYZM(MuonCand_px[0], 
-		 MuonCand_py[0],
-		 MuonCand_pz[0],
-		 MASS_MU); 
-      l2.SetXYZM(MuonCand_px[1],
-		 MuonCand_py[1],
-		 MuonCand_pz[1],
-		 MASS_MU); 
 
-      pair = l1+l2; 
+  // Get the electrons collection from the event
+  if (_fetchElectrons) {
 
-      Pair_p[0] = pair.P(); 
-      Pair_pt[0] = pair.Pt(); 
-      Pair_mass[0] = pair.M(); 
-      Pair_phi[0] = pair.Phi(); 
-      Pair_eta[0] = pair.Eta(); 
-      Pair_Y[0] = pair.Rapidity();
-      dphi = fabs(l1.Phi()-l2.Phi()); 
-      Pair_dphi[0] = (dphi<pi) ? dphi : 2.*pi-dphi; // dphi lies in [-pi, pi] 
-      Pair_dpt[0] = fabs(l1.Pt()-l2.Pt()); 
-      Pair_3Dangle[0] = (l1.Angle(l2.Vect()))/pi; 
-      nPrimVertexCand++;
+    //iEvent.getByLabel(electronLabel_, electronColl);
 
-      KalmanVertexFitter fitter(true); 
-      TransientVertex dileptonVertex = fitter.vertex(translepttrks); 
-      if(dileptonVertex.isValid()) { 
-	foundPairInEvent = true;
-	KalmanVertexCand_x = dileptonVertex.position().x(); 
-	KalmanVertexCand_y = dileptonVertex.position().y(); 
-	KalmanVertexCand_z = dileptonVertex.position().z(); 
+    edm::Handle<edm::View<pat::Electron> > electronColl;
+    iEvent.getByToken(eleToken_, electronColl);
 
-	etind = 0; 
+    edm::Handle<edm::ValueMap<bool> > loose_id_decisions;
+    iEvent.getByToken(eleLooseIdMap_, loose_id_decisions);
 
-	//  Count nearby tracks
-	for ( track = trackColl->begin(); track != trackColl->end() && etind<MAX_ET; ++track ) 
-	  {
-	    if((track->pt() == MuonCand_innerTrackPt[0]) || (track->pt() == MuonCand_innerTrackPt[1]))
-	      continue;
+    edm::Handle<edm::ValueMap<bool> > medium_id_decisions;
+    iEvent.getByToken(eleMediumIdMap_, medium_id_decisions);
 
-	    vtxdst = sqrt(std::pow((track->vertex().x()-KalmanVertexCand_x),2)+ 
-			  std::pow((track->vertex().y()-KalmanVertexCand_y),2)+ 
-			  std::pow((track->vertex().z()-KalmanVertexCand_z),2)); 
-           
-	    nExtraTracks++;
+    edm::Handle<edm::ValueMap<bool> > tight_id_decisions;
+    iEvent.getByToken(eleTightIdMap_, tight_id_decisions);
 
-	    if (vtxdst<0.1) Pair_extratracks1mm[0]++; 
-	    if (vtxdst<0.2) Pair_extratracks2mm[0]++; 
-	    if (vtxdst<0.3) Pair_extratracks3mm[0]++; 
-	    if (vtxdst<0.4) Pair_extratracks4mm[0]++; 
-	    if (vtxdst<0.5) Pair_extratracks5mm[0]++; 
-	    if (vtxdst<1.0) Pair_extratracks1cm[0]++; 
-	    if (vtxdst<2.0) Pair_extratracks2cm[0]++; 
-	    if (vtxdst<3.0) Pair_extratracks3cm[0]++; 
-	    if (vtxdst<4.0) Pair_extratracks4cm[0]++; 
-	    if (vtxdst<5.0) Pair_extratracks5cm[0]++; 
-	    if (vtxdst<10.) Pair_extratracks10cm[0]++; 
-	    if (vtxdst<closesttrkdxyz) { 
-	      closesttrkdxyz = vtxdst; 
-	    } 
-	    if (track->quality(reco::TrackBase::highPurity)==1) { 
-	      if (vtxdst<closesthighpuritytrkdxyz) { 
-		closesthighpuritytrkdxyz = vtxdst; 
-	      } 
-	    } 
+    for (unsigned int j=0; j<electronColl->size(); j++) {
+      const auto electron = electronColl->ptrAt(j);
+      ElectronCand_p[nElectronCand] = electron->p();
+      ElectronCand_px[nElectronCand] = electron->px();
+      ElectronCand_py[nElectronCand] = electron->py();
+      ElectronCand_pz[nElectronCand] = electron->pz();
+      ElectronCand_pt[nElectronCand] = electron->pt();
+      ElectronCand_eta[nElectronCand] = electron->eta();
+      ElectronCand_phi[nElectronCand] = electron->phi();
+      ElectronCand_charge[nElectronCand] = electron->charge();
 
-	    // Save track properties if within 5mm
-	    if(vtxdst<0.5) 
-	      {
-		ExtraTrack_purity[etind] = track->quality(reco::TrackBase::highPurity);  
-		ExtraTrack_nhits[etind] = track->numberOfValidHits();  
-            
-		ExtraTrack_p[etind] = track->p();  
-		ExtraTrack_px[etind] = track->px();  
-		ExtraTrack_py[etind] = track->py();  
-		ExtraTrack_pz[etind] = track->pz();  
-		ExtraTrack_pt[etind] = track->pt();  
-		ExtraTrack_eta[etind] = track->eta();  
-		ExtraTrack_phi[etind] = track->phi();  
-		ExtraTrack_charge[etind] = track->charge();  
-		ExtraTrack_chi2[etind] = track->chi2();  
-		ExtraTrack_ndof[etind] = track->ndof();  
-		ExtraTrack_vtxdxyz[etind] = vtxdst;  
-		ExtraTrack_vtxT[etind] = sqrt(std::pow(track->vertex().x()-KalmanVertexCand_x,2)+  
-					      std::pow(track->vertex().y()-KalmanVertexCand_y,2));  
-		ExtraTrack_vtxZ[etind] = fabs(track->vertex().z()-KalmanVertexCand_z);  
-		ExtraTrack_x[etind] = track->vertex().x();  
-		ExtraTrack_y[etind] = track->vertex().y();  
-		ExtraTrack_z[etind] = track->vertex().z();  
+      if(electron->closestCtfTrackRef().isNonnull()) 
+      {
+	ElectronCand_innerTrackPt[nElectronCand] = electron->closestCtfTrackRef()->pt(); 
+	ElectronCand_innerTrackEta[nElectronCand] = electron->closestCtfTrackRef()->eta();  
+	ElectronCand_innerTrackPhi[nElectronCand] = electron->closestCtfTrackRef()->phi();  
+	ElectronCand_innerTrackVtxz[nElectronCand] = electron->closestCtfTrackRef()->vertex().z();  
+	_leptonptmp->SetXYZM(electron->closestCtfTrackRef()->px(), electron->closestCtfTrackRef()->py(), electron->closestCtfTrackRef()->pz(), electron->mass());
 
-		etind++; 
-	      }
+	// Use 2 highest pT electrons for vertexing
+	if(nElectronCand < 2)
+	{
+	  lepttrks->push_back (*(electron->gsfTrack()));
+	  reco::TransientTrack tmptrk = (*theKalVtx).build( *(electron->gsfTrack() ) ); 
+	  translepttrks.push_back( tmptrk ); 
+	}
+      }
+      else
+      {
+	_leptonptmp->SetXYZM(electron->px(), electron->py(), electron->pz(), electron->mass());
+	ElectronCand_innerTrackPt[nElectronCand] = -999.;
+	ElectronCand_innerTrackEta[nElectronCand] = -999.;
+	ElectronCand_innerTrackPhi[nElectronCand] = -999.;
+	ElectronCand_innerTrackVtxz[nElectronCand] = -999.;
+      }
 
-	  }
-	ClosestExtraTrack_vtxdxyz = closesttrkdxyz; 
-	ClosestHighPurityExtraTrack_vtxdxyz = closesthighpuritytrkdxyz;
-      } 
+      electronsMomenta.insert(std::pair<Int_t,TLorentzVector>(nElectronCand, *_leptonptmp));
+
+      ElectronCand_vtxx[nElectronCand] = electron->vertex().x();
+      ElectronCand_vtxy[nElectronCand] = electron->vertex().y();
+      ElectronCand_vtxz[nElectronCand] = electron->vertex().z();
+
+      ElectronCand_deltaPhi[nElectronCand] = electron->deltaPhiSuperClusterTrackAtVtx();
+      ElectronCand_deltaEta[nElectronCand] = electron->deltaEtaSuperClusterTrackAtVtx();
+      ElectronCand_HoverE[nElectronCand] = electron->hcalOverEcal();
+      ElectronCand_trackiso[nElectronCand] = electron->dr03TkSumPt() / electron->et();
+      ElectronCand_ecaliso[nElectronCand] = electron->dr03EcalRecHitSumEt() / electron->et();
+      ElectronCand_hcaliso[nElectronCand] = electron->dr03HcalTowerSumEt() / electron->et();
+      ElectronCand_sigmaIetaIeta[nElectronCand] = electron->sigmaIetaIeta(); 
+      ElectronCand_convDist[nElectronCand] = fabs(electron->convDist()); 
+      ElectronCand_convDcot[nElectronCand] = fabs(electron->convDcot());
+      ElectronCand_ecalDriven[nElectronCand] = electron->ecalDrivenSeed();
+
+      /*
+	 ElectronCand_looseID[nElectronCand] = (*loose_id_decisions)[electron];
+	 ElectronCand_mediumID[nElectronCand] = (*medium_id_decisions)[electron];
+	 ElectronCand_tightID[nElectronCand] = (*tight_id_decisions)[electron];
+	 */
+
+      nElectronCand++;
+
     }
+  }
+
+  // If 2 electrons, make a vertex and compute pair quantities from the leading 2
+  // For now we do this "outside-in", rather than starting from the list of offlinePrimaryVertices and looking for electrons
+  if(translepttrks.size() >= 2)
+  {
+    l1.SetXYZM(ElectronCand_px[0], 
+	ElectronCand_py[0],
+	ElectronCand_pz[0],
+	MASS_E); 
+    l2.SetXYZM(ElectronCand_px[1],
+	ElectronCand_py[1],
+	ElectronCand_pz[1],
+	MASS_E); 
+
+    pair = l1+l2; 
+
+    Pair_p[0] = pair.P(); 
+    Pair_pt[0] = pair.Pt(); 
+    Pair_mass[0] = pair.M(); 
+    Pair_phi[0] = pair.Phi(); 
+    Pair_eta[0] = pair.Eta(); 
+    Pair_Y[0] = pair.Rapidity();
+    dphi = fabs(l1.Phi()-l2.Phi()); 
+    Pair_dphi[0] = (dphi<pi) ? dphi : 2.*pi-dphi; // dphi lies in [-pi, pi] 
+    Pair_dpt[0] = fabs(l1.Pt()-l2.Pt()); 
+    Pair_3Dangle[0] = (l1.Angle(l2.Vect()))/pi; 
+    nPrimVertexCand++;
+
+    KalmanVertexFitter fitter(true); 
+    TransientVertex dileptonVertex = fitter.vertex(translepttrks); 
+    if(dileptonVertex.isValid()) { 
+      foundPairInEvent = true;
+      KalmanVertexCand_x = dileptonVertex.position().x(); 
+      KalmanVertexCand_y = dileptonVertex.position().y(); 
+      KalmanVertexCand_z = dileptonVertex.position().z(); 
+
+      etind = 0; 
+
+      //  Count nearby tracks
+      for ( track = trackColl->begin(); track != trackColl->end() && etind<MAX_ET; ++track ) 
+      {
+	if((track->pt() == ElectronCand_innerTrackPt[0]) || (track->pt() == ElectronCand_innerTrackPt[1]))
+	  continue;
+
+	vtxdst = sqrt(std::pow((track->vertex().x()-KalmanVertexCand_x),2)+ 
+	    std::pow((track->vertex().y()-KalmanVertexCand_y),2)+ 
+	    std::pow((track->vertex().z()-KalmanVertexCand_z),2)); 
+
+	nExtraTracks++;
+
+	if (vtxdst<0.1) Pair_extratracks1mm[0]++; 
+	if (vtxdst<0.2) Pair_extratracks2mm[0]++; 
+	if (vtxdst<0.3) Pair_extratracks3mm[0]++; 
+	if (vtxdst<0.4) Pair_extratracks4mm[0]++; 
+	if (vtxdst<0.5) Pair_extratracks5mm[0]++; 
+	if (vtxdst<1.0) Pair_extratracks1cm[0]++; 
+	if (vtxdst<2.0) Pair_extratracks2cm[0]++; 
+	if (vtxdst<3.0) Pair_extratracks3cm[0]++; 
+	if (vtxdst<4.0) Pair_extratracks4cm[0]++; 
+	if (vtxdst<5.0) Pair_extratracks5cm[0]++; 
+	if (vtxdst<10.) Pair_extratracks10cm[0]++; 
+	if (vtxdst<closesttrkdxyz) { 
+	  closesttrkdxyz = vtxdst; 
+	} 
+	if (track->quality(reco::TrackBase::highPurity)==1) { 
+	  if (vtxdst<closesthighpuritytrkdxyz) { 
+	    closesthighpuritytrkdxyz = vtxdst; 
+	  } 
+	} 
+
+	// Save track properties if within 5mm
+	if(vtxdst<0.5) 
+	{
+	  ExtraTrack_purity[etind] = track->quality(reco::TrackBase::highPurity);  
+	  ExtraTrack_nhits[etind] = track->numberOfValidHits();  
+
+	  ExtraTrack_p[etind] = track->p();  
+	  ExtraTrack_px[etind] = track->px();  
+	  ExtraTrack_py[etind] = track->py();  
+	  ExtraTrack_pz[etind] = track->pz();  
+	  ExtraTrack_pt[etind] = track->pt();  
+	  ExtraTrack_eta[etind] = track->eta();  
+	  ExtraTrack_phi[etind] = track->phi();  
+	  ExtraTrack_charge[etind] = track->charge();  
+	  ExtraTrack_chi2[etind] = track->chi2();  
+	  ExtraTrack_ndof[etind] = track->ndof();  
+	  ExtraTrack_vtxdxyz[etind] = vtxdst;  
+	  ExtraTrack_vtxT[etind] = sqrt(std::pow(track->vertex().x()-KalmanVertexCand_x,2)+std::pow(track->vertex().y()-KalmanVertexCand_y,2));  
+	  ExtraTrack_vtxZ[etind] = fabs(track->vertex().z()-KalmanVertexCand_z);
+	  ExtraTrack_x[etind] = track->vertex().x();  
+	  ExtraTrack_y[etind] = track->vertex().y();  
+	  ExtraTrack_z[etind] = track->vertex().z();  
+	  etind++; 
+	}
+
+      }
+      ClosestExtraTrack_vtxdxyz = closesttrkdxyz; 
+      ClosestHighPurityExtraTrack_vtxdxyz = closesthighpuritytrkdxyz;
+    } 
+  }
 
   for (vertex=vertices->begin(); vertex!=vertices->end() && nPrimVertexCand<MAX_VTX; ++vertex) 
-    { 
-      PrimVertexCand_id[nPrimVertexCand] = nPrimVertexCand; 
-      PrimVertexCand_x[nPrimVertexCand] = vertex->x(); 
-      PrimVertexCand_y[nPrimVertexCand] = vertex->y(); 
-      PrimVertexCand_z[nPrimVertexCand] = vertex->z(); 
-      PrimVertexCand_tracks[nPrimVertexCand] = vertex->nTracks(); 
-      PrimVertexCand_chi2[nPrimVertexCand] = vertex->chi2(); 
-      PrimVertexCand_ndof[nPrimVertexCand] = vertex->ndof(); 
-      nPrimVertexCand++;
-    }
-
-  // end JH 
-
+  { 
+    PrimVertexCand_id[nPrimVertexCand] = nPrimVertexCand; 
+    PrimVertexCand_x[nPrimVertexCand] = vertex->x(); 
+    PrimVertexCand_y[nPrimVertexCand] = vertex->y(); 
+    PrimVertexCand_z[nPrimVertexCand] = vertex->z(); 
+    PrimVertexCand_tracks[nPrimVertexCand] = vertex->nTracks(); 
+    PrimVertexCand_chi2[nPrimVertexCand] = vertex->chi2(); 
+    PrimVertexCand_ndof[nPrimVertexCand] = vertex->ndof(); 
+    nPrimVertexCand++;
+  }
 
   delete _leptonptmp;
 
-  if(foundPairInEvent)
+  if(foundPairInEvent){
     tree->Fill();
+    nCandidates++;
+  }
 }
 
 
 // ------------ method called once each job just before starting event loop  ------------
-void 
+  void 
 GammaGammaEE::beginJob()
 {
-  // Booking the ntuple
-
   tree->Branch("Run", &Run, "Run/I");
   tree->Branch("LumiSection", &LumiSection, "LumiSection/I");
   tree->Branch("BX", &BX, "BX/I");
   tree->Branch("EventNum", &EventNum, "EventNum/I");
-  /*tree->Branch("AvgInstDelLumi", &AvgInstDelLumi, "AvgInstDelLumi/D");
-  tree->Branch("BunchInstLumi", &BunchInstLumi, "BunchInstLumi[3]/D");*/
-
   tree->Branch("nHLT", &nHLT, "nHLT/I");
   tree->Branch("HLT_Accept", HLT_Accept, "HLT_Prescl[nHLT]/I");
   tree->Branch("HLT_Prescl", HLT_Prescl, "HLT_Prescl[nHLT]/I");
-  
-  if (_fetchMuons) {
-    tree->Branch("nMuonCand", &nMuonCand, "nMuonCand/I");
-    tree->Branch("MuonCand_px", MuonCand_px, "MuonCand_px[nMuonCand]/D");
-    tree->Branch("MuonCand_py", MuonCand_py, "MuonCand_py[nMuonCand]/D");
-    tree->Branch("MuonCand_pz", MuonCand_pz, "MuonCand_pz[nMuonCand]/D");
-    tree->Branch("MuonCand_p", MuonCand_p, "MuonCand_p[nMuonCand]/D");
-    tree->Branch("MuonCand_pt", MuonCand_pt, "MuonCand_pt[nMuonCand]/D");
-    tree->Branch("MuonCand_eta", MuonCand_eta, "MuonCand_eta[nMuonCand]/D");
-    tree->Branch("MuonCand_phi", MuonCand_phi, "MuonCand_phi[nMuonCand]/D");
-    tree->Branch("MuonCand_charge", MuonCand_charge, "MuonCand_charge[nMuonCand]/I");
-    tree->Branch("MuonCand_vtxx", MuonCand_vtxx, "MuonCand_vtxx[nMuonCand]/D");
-    tree->Branch("MuonCand_vtxy", MuonCand_vtxy, "MuonCand_vtxy[nMuonCand]/D");
-    tree->Branch("MuonCand_vtxz", MuonCand_vtxz, "MuonCand_vtxz[nMuonCand]/D");
-    tree->Branch("MuonCand_dxy", MuonCand_dxy, "MuonCand_dxy[nMuonCand]/D");
-    tree->Branch("MuonCand_dz", MuonCand_dz, "MuonCand_dz[nMuonCand]/D");
-    tree->Branch("MuonCand_nstatseg", MuonCand_nstatseg, "MuonCand_nstatseg[nMuonCand]/I");
-    tree->Branch("MuonCand_ntrklayers", MuonCand_ntrklayers, "MuonCand_ntrklayers[nMuonCand]/I");
-    tree->Branch("MuonCand_npxlhits", MuonCand_npxlhits, "MuonCand_npxlhits[nMuonCand]/I");
-    tree->Branch("MuonCand_isglobal", MuonCand_isglobal, "MuonCand_isglobal[nMuonCand]/I");
-    tree->Branch("MuonCand_istracker", MuonCand_istracker, "MuonCand_istracker[nMuonCand]/I");
-    tree->Branch("MuonCand_isstandalone", MuonCand_isstandalone, "MuonCand_isstandalone[nMuonCand]/I");
-    tree->Branch("MuonCand_ispfmuon", MuonCand_ispfmuon, "MuonCand_ispfmuon[nMuonCand]/I");
-    tree->Branch("MuonCand_istight", MuonCand_istight, "MuonCand_istight[nMuonCand]/I");
-    tree->Branch("MuonCandTrack_nmuchits", MuonCandTrack_nmuchits, "MuonCandTrack_nmuchits[nMuonCand]/I");
-    tree->Branch("MuonCandTrack_chisq", MuonCandTrack_chisq, "MuonCandTrack_chisq[nMuonCand]/D");
-    tree->Branch("MuonCand_innerTrackPt", MuonCand_innerTrackPt, "MuonCand_innerTrackPt[nMuonCand]/D");
-    tree->Branch("MuonCand_innerTrackEta", MuonCand_innerTrackEta, "MuonCand_innerTrackEta[nMuonCand]/D"); 
-    tree->Branch("MuonCand_innerTrackPhi", MuonCand_innerTrackPhi, "MuonCand_innerTrackPhi[nMuonCand]/D"); 
 
+  if (_fetchElectrons) {
+    tree->Branch("nElectronCand", &nElectronCand, "nElectronCand/I");
+    tree->Branch("ElectronCand_px", ElectronCand_px, "ElectronCand_px[nElectronCand]/D");
+    tree->Branch("ElectronCand_py", ElectronCand_py, "ElectronCand_py[nElectronCand]/D");
+    tree->Branch("ElectronCand_pz", ElectronCand_pz, "ElectronCand_pz[nElectronCand]/D");
+    tree->Branch("ElectronCand_p", ElectronCand_p, "ElectronCand_p[nElectronCand]/D");
+    tree->Branch("ElectronCand_pt", ElectronCand_pt, "ElectronCand_pt[nElectronCand]/D");
+    tree->Branch("ElectronCand_eta", ElectronCand_eta, "ElectronCand_eta[nElectronCand]/D");
+    tree->Branch("ElectronCand_phi", ElectronCand_phi, "ElectronCand_phi[nElectronCand]/D");
+    tree->Branch("ElectronCand_charge", ElectronCand_charge, "ElectronCand_charge[nElectronCand]/I");
+    tree->Branch("ElectronCand_vtxx", ElectronCand_vtxx, "ElectronCand_vtxx[nElectronCand]/D");
+    tree->Branch("ElectronCand_vtxy", ElectronCand_vtxy, "ElectronCand_vtxy[nElectronCand]/D");
+    tree->Branch("ElectronCand_vtxz", ElectronCand_vtxz, "ElectronCand_vtxz[nElectronCand]/D");
+    tree->Branch("ElectronCand_innerTrackPt", ElectronCand_innerTrackPt, "ElectronCand_innerTrackPt[nElectronCand]/D");
+    tree->Branch("ElectronCand_innerTrackEta", ElectronCand_innerTrackEta, "ElectronCand_innerTrackEta[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_innerTrackPhi", ElectronCand_innerTrackPhi, "ElectronCand_innerTrackPhi[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_innerTrackVtxz", ElectronCand_innerTrackVtxz, "ElectronCand_innerTrackVtxz[nElectronCand]/D");
+    tree->Branch("ElectronCand_deltaPhi", ElectronCand_deltaPhi, "ElectronCand_deltaPhi[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_deltaEta", ElectronCand_deltaEta, "ElectronCand_deltaEta[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_HoverE", ElectronCand_HoverE, "ElectronCand_HoverE[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_trackiso", ElectronCand_trackiso, "ElectronCand_trackiso[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_ecaliso", ElectronCand_ecaliso, "ElectronCand_ecaliso[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_hcaliso", ElectronCand_hcaliso, "ElectronCand_hcaliso[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_sigmaIetaIeta", ElectronCand_sigmaIetaIeta, "ElectronCand_sigmaIetaIeta[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_convDist", ElectronCand_convDist, "ElectronCand_convDist[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_convDcot", ElectronCand_convDcot, "ElectronCand_convDcot[nElectronCand]/D"); 
+    tree->Branch("ElectronCand_ecalDriven", ElectronCand_ecalDriven, "ElectronCand_ecalDriven[nElectronCand]/D"); 
+    /*
+       tree->Branch("ElectronCand_tightID", ElectronCand_tightID, "ElectronCand_tightID[nElectronCand]/D"); 
+       tree->Branch("ElectronCand_mediumID", ElectronCand_mediumID, "ElectronCand_mediumID[nElectronCand]/D"); 
+       tree->Branch("ElectronCand_looseID", ElectronCand_looseID, "ElectronCand_looseID[nElectronCand]/D");  
+       */
     if (runOnMC_) {
-      tree->Branch("nGenMuonCand", &nGenMuonCand, "nGenMuonCand/I");
-      tree->Branch("nGenMuonCandOutOfAccept", &nGenMuonCandOutOfAccept, "nGenMuonCandOutOfAccept/I");    
-      tree->Branch("GenMuonCand_p", GenMuonCand_p, "GenMuonCand_p[nGenMuonCand]/D");
-      tree->Branch("GenMuonCand_px", GenMuonCand_px, "GenMuonCand_px[nGenMuonCand]/D");
-      tree->Branch("GenMuonCand_py", GenMuonCand_py, "GenMuonCand_py[nGenMuonCand]/D");
-      tree->Branch("GenMuonCand_pz", GenMuonCand_pz, "GenMuonCand_pz[nGenMuonCand]/D");
-      tree->Branch("GenMuonCand_pt", GenMuonCand_pt, "GenMuonCand_pt[nGenMuonCand]/D");
-      tree->Branch("GenMuonCand_eta", GenMuonCand_eta, "GenMuonCand_eta[nGenMuonCand]/D");
-      tree->Branch("GenMuonCand_phi", GenMuonCand_phi, "GenMuonCand_phi[nGenMuonCand]/D");
-
+      tree->Branch("nGenElectronCand", &nGenElectronCand, "nGenElectronCand/I");
+      tree->Branch("nGenElectronCandOutOfAccept", &nGenElectronCandOutOfAccept, "nGenElectronCandOutOfAccept/I");    
+      tree->Branch("GenElectronCand_p", GenElectronCand_p, "GenElectronCand_p[nGenElectronCand]/D");
+      tree->Branch("GenElectronCand_px", GenElectronCand_px, "GenElectronCand_px[nGenElectronCand]/D");
+      tree->Branch("GenElectronCand_py", GenElectronCand_py, "GenElectronCand_py[nGenElectronCand]/D");
+      tree->Branch("GenElectronCand_pz", GenElectronCand_pz, "GenElectronCand_pz[nGenElectronCand]/D");
+      tree->Branch("GenElectronCand_pt", GenElectronCand_pt, "GenElectronCand_pt[nGenElectronCand]/D");
+      tree->Branch("GenElectronCand_eta", GenElectronCand_eta, "GenElectronCand_eta[nGenElectronCand]/D");
+      tree->Branch("GenElectronCand_phi", GenElectronCand_phi, "GenElectronCand_phi[nGenElectronCand]/D");
       tree->Branch("nGenProtCand", &nGenProtCand, "nGenProtCand/I");     
       tree->Branch("GenProtCand_p", GenProtCand_p, "GenProtCand_p[nGenProtCand]/D"); 
       tree->Branch("GenProtCand_px", GenProtCand_px, "GenProtCand_px[nGenProtCand]/D"); 
@@ -661,10 +621,8 @@ GammaGammaEE::beginJob()
       tree->Branch("GenProtCand_status", GenProtCand_status, "GenProtCand_status[nGenProtCand]/I"); 
       tree->Branch("GenProtCand_xi", GenProtCand_xi, "GenProtCand_xi[nGenProtCand]/D");   
       tree->Branch("GenProtCand_t", GenProtCand_t, "GenProtCand_t[nGenProtCand]/D");   
-
     }
   }
-  
   if(runOnProtons_){
     tree->Branch("nLocalProtCand", &nLocalProtCand, "nLocalProtCand/I");
     tree->Branch("LocalProtCand_x", LocalProtCand_x, "LocalProtCand_x[nLocalProtCand]/D");
@@ -678,7 +636,7 @@ GammaGammaEE::beginJob()
     tree->Branch("LocalProtCand_TySigma", LocalProtCand_TySigma, "LocalProtCand_TySigma[nLocalProtCand]/D");  
   }
 
-	// Primary vertices' information
+  // Primary vertices information
   tree->Branch("nPrimVertexCand", &nPrimVertexCand, "nPrimVertexCand/I");
   tree->Branch("PrimVertexCand_id", PrimVertexCand_id, "PrimVertexCand_id[nPrimVertexCand]/I");
   tree->Branch("PrimVertexCand_x", PrimVertexCand_x, "PrimVertexCand_x[nPrimVertexCand]/D");
@@ -766,69 +724,63 @@ GammaGammaEE::beginJob()
   tree->Branch("nTruePUafterPUWeightBX0", &nTruePUafterPUWeightBX0, "nTruePUafterPUWeightBX0/D");
   tree->Branch("Weight", &Weight, "Weight/D");
   tree->Branch("PUWeightTrue", &PUWeightTrue, "PUWeightTrue/D");
-
   nCandidates = 0;
+
 }
 
 // ------------ method called once each job just after ending the event loop  ------------
-void 
+  void 
 GammaGammaEE::endJob() 
 {
   std::cout << "==> Number of candidates in the dataset : " << nCandidates << std::endl;
 }
 
 // ------------ method called when starting to processes a run  ------------
-void 
+  void 
 GammaGammaEE::beginRun(edm::Run const& iRun, edm::EventSetup const& iSetup)
 {
   bool changed;
   std::string triggerName_;
-  
+
   changed = true;
   if (hltConfig_.init(iRun, iSetup, hltMenuLabel_, changed)) {
     if (changed) {
       // check if trigger name in (new) config
-      triggerName_ = "HLT_DoubleMu0";
+      triggerName_ = "HLT_DoubleEle33_CaloIdL_GsfTrkIdVL_v*";
       if (triggerName_!="@") { // "@" means: analyze all triggers in config
-        const UInt_t n = hltConfig_.size();
-        const UInt_t triggerIndex = hltConfig_.triggerIndex(triggerName_);
-        if (triggerIndex>=n) {
-          std::cout << "GammaGammaEE::analyze:"
-                    << " TriggerName " << triggerName_ 
-                    << " not available in (new) config!"
-		    << std::endl;
-          //std::cout << "Available TriggerNames are: " << std::endl;
-          //hltConfig_.dump("Triggers");
-        }
+	const UInt_t n = hltConfig_.size();
+	const UInt_t triggerIndex = hltConfig_.triggerIndex(triggerName_);
+	if (triggerIndex>=n) {
+	  std::cout << "GammaGammaEE::analyze:"
+	    << " TriggerName " << triggerName_ 
+	    << " not available in (new) config!"
+	    << std::endl;
+	}
       }
-      //hltConfig_.dump("Streams");
-      //hltConfig_.dump("Datasets");
-      //hltConfig_.dump("PrescaleTable");
-      //hltConfig_.dump("ProcessPSet");
     }
   }
   else {
     std::cout << "GammaGammaEE::beginRun:"
-              << " config extraction failure with process name "
-              << hltMenuLabel_
-	      << std::endl;
+      << " config extraction failure with process name "
+      << hltMenuLabel_
+      << std::endl;
   }
 }
 
 // ------------ method called when ending the processing of a run  ------------
-void 
+  void 
 GammaGammaEE::endRun(edm::Run const&, edm::EventSetup const&)
 {
 }
 
 // ------------ method called when starting to processes a luminosity block  ------------
-void 
+  void 
 GammaGammaEE::beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
 {
 }
 
 // ------------ method called when ending the processing of a luminosity block  ------------
-void 
+  void 
 GammaGammaEE::endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&)
 {
 }

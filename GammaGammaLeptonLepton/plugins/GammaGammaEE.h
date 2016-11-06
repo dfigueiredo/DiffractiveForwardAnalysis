@@ -4,17 +4,13 @@
 // system include files
 #include <memory>
 #include <map>
-
 #include <vector>
-
 
 // user include files
 #include "FWCore/Framework/interface/Frameworkfwd.h"
 #include "FWCore/Framework/interface/EDAnalyzer.h"
-
 #include "FWCore/Framework/interface/Event.h"
 #include "FWCore/Framework/interface/MakerMacros.h"
-
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/Registry.h"
 
@@ -36,21 +32,14 @@
 #include "PhysicsTools/Utilities/interface/LumiReWeighting.h"
 #include "SimDataFormats/PileupSummaryInfo/interface/PileupSummaryInfo.h"
 
-// Muons collection
-#include "DataFormats/PatCandidates/interface/Muon.h"
-#include "DataFormats/MuonReco/interface/Muon.h"
-//#include "DataFormats/MuonReco/interface/MuonFwd.h"
-//#include "DataFormats/MuonReco/interface/MuonSelectors.h"
-
 // Electrons collection
 #include "DataFormats/PatCandidates/interface/Electron.h"
 #include "DataFormats/RecoCandidate/interface/IsoDeposit.h"
 #include "DataFormats/EgammaCandidates/interface/Electron.h"  
 #include "DataFormats/EgammaCandidates/interface/ElectronFwd.h"   
-//#include "EGamma/EGammaAnalysisTools/interface/EGammaCutBasedEleId.h"
-//#include "EgammaAnalysis/ElectronTools/interface/EGammaCutBasedEleId.h"
 #include "DataFormats/EgammaCandidates/interface/Conversion.h"
 #include "DataFormats/EgammaCandidates/interface/GsfElectron.h"
+#include "RecoEgamma/EgammaTools/interface/ConversionTools.h"
 
 // Particle flow collection
 #include "DataFormats/ParticleFlowCandidate/interface/PFCandidate.h"
@@ -61,14 +50,12 @@
 #include "DataFormats/VertexReco/interface/VertexFwd.h"
 #include "DataFormats/Common/interface/RefToBase.h" 
 #include "RecoVertex/VertexPrimitives/interface/TransientVertex.h"
-
 #include "TrackingTools/TransientTrack/interface/TransientTrackBuilder.h"
 #include "TrackingTools/Records/interface/TransientTrackRecord.h"
 #include "TrackingTools/TransientTrack/interface/TransientTrack.h"
 #include "RecoVertex/VertexPrimitives/interface/ConvertError.h"
 #include "SimTracker/Records/interface/TrackAssociatorRecord.h"
 #include "RecoVertex/KalmanVertexFit/interface/KalmanVertexFitter.h"
-
 
 // Jets/MET collection
 #include "DataFormats/PatCandidates/interface/Jet.h"
@@ -89,9 +76,11 @@
 #include "DataFormats/CTPPSReco/interface/TotemRPUVPattern.h" 
 #include "DataFormats/CTPPSReco/interface/TotemRPLocalTrack.h" 
 
+// Analysis classes
 #include "HLTmatches.h"
 #include "PrimaryVertex.h"
 
+// ROOT
 #include <TFile.h>
 #include <TTree.h>
 #include <TVector3.h>
@@ -99,7 +88,7 @@
 
 #define MAX_HLT    10 // Maximum number of HLT to check
 #define MAX_LL     50 // Maximum number of leptons per event
-#define MAX_MUONS  25 // Maximum number of muons per event
+#define MAX_ELECTRONS  25 // Maximum number of muons per event
 #define MAX_ELE    25 // Maximum number of electrons per event
 #define MAX_PHO    50 // Maximum number of photons per event
 #define MAX_PAIRS  1 // Maximum number of leptons pairs per event
@@ -111,7 +100,6 @@
 #define MAX_JETS   30 // Maximum nulber of jets per event
 #define MAX_GENPRO 10 // Maximum number of generated protons
 #define MAX_LOCALPCAND 10 // Maximum number of reconstructed local tracks in RPs
-
 #define MASS_MU 0.1057
 #define MASS_E  0.000511
 #define MASS_P  0.938272029
@@ -127,9 +115,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
   public:
     explicit GammaGammaEE(const edm::ParameterSet&);
     ~GammaGammaEE();
-
     static void fillDescriptions(edm::ConfigurationDescriptions& descriptions);
-
 
   private:
     virtual void beginJob() ;
@@ -140,7 +126,6 @@ class GammaGammaEE : public edm::EDAnalyzer {
     virtual void endRun(edm::Run const&, edm::EventSetup const&);
     virtual void beginLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
     virtual void endLuminosityBlock(edm::LuminosityBlock const&, edm::EventSetup const&);
-
     virtual void LookAtTriggersEE(const edm::Event&, const edm::EventSetup&);
 
     // ----------member data ---------------------------
@@ -160,7 +145,13 @@ class GammaGammaEE : public edm::EDAnalyzer {
     std::string hltMenuLabel_, outputFile_;
     std::vector<std::string> triggersList_, leptonsType_;
     edm::InputTag beamSpotLabel_, recoVertexLabel_;
-    edm::InputTag genLabel_, muonLabel_, eleLabel_, trackLabel_;
+    edm::InputTag genLabel_, muonLabel_, trackLabel_, conversions_;
+
+    edm::EDGetTokenT< edm::View<pat::Electron> > eleToken_;
+    edm::EDGetTokenT< edm::ValueMap<bool> > eleLooseIdMap_;
+    edm::EDGetTokenT< edm::ValueMap<bool> > eleMediumIdMap_;
+    edm::EDGetTokenT< edm::ValueMap<bool> > eleTightIdMap_;
+
     edm::InputTag conversionsLabel_, rhoIsoLabel_;
     edm::InputTag pileupLabel_;
     edm::InputTag pflowLabel_;
@@ -170,6 +161,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     Double_t minPtMC_, minEtaMC_;
     Double_t sqrts_;
 
+    // RP
     edm::EDGetTokenT< edm::DetSetVector<TotemRPLocalTrack> > tokenRPLocalTrack;  
 
     // Beam spot
@@ -180,6 +172,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     reco::GenParticleCollection::const_iterator genPart;
     std::string fullAcceptancePath;
     edm::FileInPath *myDataFile;
+
     // HPS acceptance tables
     TFile *f;
     AcceptanceTableHelper helper420beam1, helper220beam1, helper420a220beam1;
@@ -198,6 +191,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     Int_t npv, npvtrue, npvm1true, npvp1true, npv0true, npv0;
     std::string mcPileupFile_, mcPileupPath_, dataPileupFile_, dataPileupPath_;
 
+    // Switches
     bool _fetchMuons, _fetchElectrons;
 
     // Two-leptons matching
@@ -206,7 +200,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     Double_t leptonsDist, minDist; 
     TLorentzVector* _leptonptmp;
     TLorentzVector l1, l2;
-    std::map<Int_t, TLorentzVector> muonsMomenta, electronsMomenta;
+    std::map<Int_t, TLorentzVector> electronsMomenta;
 
     // Isolation
     Double_t rhoIso;
@@ -219,20 +213,10 @@ class GammaGammaEE : public edm::EDAnalyzer {
     reco::VertexCollection::const_iterator vertex;
     TString* _leptonType;
 
-    // PAT muons
-    /*      edm::Handle<edm::View<pat::Muon> > muonColl;
-	    edm::View<pat::Muon>::const_iterator muon; */
-    // AOD muons
-    edm::Handle<reco::MuonCollection> muonColl;
-    reco::MuonCollection::const_iterator muon;
-
     // RECO tracks
     edm::Handle<reco::TrackCollection> trackColl;
     reco::TrackCollection::const_iterator track;
 
-    // PAT electrons
-    edm::Handle<edm::View<pat::Electron> > eleColl;
-    edm::View<pat::Electron>::const_iterator electron;
     // RECO electrons
     edm::Handle<reco::GsfElectronCollection> eleCollRECO;
     edm::Handle<reco::ConversionCollection> conversions_h;
@@ -241,29 +225,20 @@ class GammaGammaEE : public edm::EDAnalyzer {
     TLorentzVector pair;
     Double_t dphi;
 
-
     ////// Tree contents //////
 
     // Run/event quantities
     Int_t BX, Run, LumiSection, EventNum;
-    //Double_t AvgInstDelLumi, BunchInstLumi[3]; 
 
     // HLT quantities
     Int_t nHLT;
     Int_t HLT_Accept[MAX_HLT], HLT_Prescl[MAX_HLT];
-    /*Int_t nHLTLeptonCand[MAX_HLT];
-      Double_t HLTLeptonCand_pt[2][MAX_HLT];
-      Double_t HLTLeptonCand_eta[2][MAX_HLT];
-      Double_t HLTLeptonCand_phi[2][MAX_HLT];
-      Int_t HLTLeptonCand_charge[2][MAX_HLT];
-      Int_t HLT_LeadingLepton[MAX_HLT], HLT_TrailingLepton[MAX_HLT];
-      Int_t HLT_LeadingLepton_Prescl[MAX_HLT], HLT_TrailingLepton_Prescl[MAX_HLT];*/
 
     // Generator level quantities
-    Int_t nGenMuonCand, nGenMuonCandOutOfAccept;
-    Double_t GenMuonCand_px[MAX_GENMU], GenMuonCand_py[MAX_GENMU], GenMuonCand_pz[MAX_GENMU];
-    Double_t GenMuonCand_p[MAX_GENMU], GenMuonCand_pt[MAX_GENMU];
-    Double_t GenMuonCand_eta[MAX_GENMU], GenMuonCand_phi[MAX_GENMU];
+    Int_t nGenElectronCand, nGenElectronCandOutOfAccept;
+    Double_t GenElectronCand_px[MAX_GENMU], GenElectronCand_py[MAX_GENMU], GenElectronCand_pz[MAX_GENMU];
+    Double_t GenElectronCand_p[MAX_GENMU], GenElectronCand_pt[MAX_GENMU];
+    Double_t GenElectronCand_eta[MAX_GENMU], GenElectronCand_phi[MAX_GENMU];
     Double_t GenPair_p, GenPair_pt, GenPair_mass;
     Double_t GenPair_phi, GenPair_eta;
     Double_t GenPair_dphi, GenPair_dpt, GenPair_3Dangle;
@@ -293,21 +268,29 @@ class GammaGammaEE : public edm::EDAnalyzer {
     Int_t nTruePUforPUWeightBXM1, nTruePUforPUWeightBXP1, nTruePUforPUWeightBX0;
     Double_t Weight;
 
-    // Muon quantities
-    Int_t nMuonCand;
-    Double_t MuonCand_px[MAX_LL], MuonCand_py[MAX_LL], MuonCand_pz[MAX_LL];
-    Double_t MuonCand_p[MAX_LL], MuonCand_pt[MAX_LL];
-    Double_t MuonCand_eta[MAX_LL], MuonCand_phi[MAX_LL];
-    Double_t MuonCand_vtxx[MAX_LL], MuonCand_vtxy[MAX_LL], MuonCand_vtxz[MAX_LL];
-    Int_t MuonCand_charge[MAX_LL];
-    Double_t MuonCand_dxy[MAX_LL], MuonCand_dz[MAX_LL];
-    Int_t MuonCand_nstatseg[MAX_LL], MuonCand_npxlhits[MAX_LL], MuonCand_ntrklayers[MAX_LL];
-    Double_t MuonCand_[MAX_LL];
-    Int_t MuonCandTrack_nmuchits[MAX_LL];
-    Double_t MuonCandTrack_chisq[MAX_LL];
-    Int_t MuonCand_isglobal[MAX_LL], MuonCand_istracker[MAX_LL], MuonCand_isstandalone[MAX_LL], MuonCand_ispfmuon[MAX_LL];
-    Int_t MuonCand_istight[MAX_LL];
-    Double_t MuonCand_innerTrackPt[MAX_LL],MuonCand_innerTrackEta[MAX_LL],MuonCand_innerTrackPhi[MAX_LL];
+    // Electron quantities
+    Int_t nElectronCand;
+    Double_t ElectronCand_px[MAX_LL], ElectronCand_py[MAX_LL], ElectronCand_pz[MAX_LL];
+    Double_t ElectronCand_p[MAX_LL], ElectronCand_pt[MAX_LL];
+    Double_t ElectronCand_eta[MAX_LL], ElectronCand_phi[MAX_LL];
+    Double_t ElectronCand_vtxx[MAX_LL], ElectronCand_vtxy[MAX_LL], ElectronCand_vtxz[MAX_LL];
+    Int_t ElectronCand_charge[MAX_LL];
+    Int_t ElectronCand_nstatseg[MAX_LL], ElectronCand_npxlhits[MAX_LL], ElectronCand_ntrklayers[MAX_LL];
+    Double_t ElectronCand_[MAX_LL];
+    Int_t ElectronCandTrack_nechits[MAX_LL];
+    Double_t ElectronCandTrack_chisq[MAX_LL];
+    Int_t ElectronCand_isglobal[MAX_LL], ElectronCand_istracker[MAX_LL], ElectronCand_isstandalone[MAX_LL], ElectronCand_ispfelectron[MAX_LL];
+    Int_t ElectronCand_istight[MAX_LL];
+    Double_t ElectronCand_innerTrackPt[MAX_LL],ElectronCand_innerTrackEta[MAX_LL],ElectronCand_innerTrackPhi[MAX_LL];
+    Double_t ElectronCand_innerTrackVtxz[MAX_LL];
+    Double_t ElectronCand_deltaPhi[MAX_LL];
+    Double_t ElectronCand_deltaEta[MAX_LL];
+    Double_t ElectronCand_HoverE[MAX_LL];
+    Double_t ElectronCand_trackiso[MAX_LL], ElectronCand_ecaliso[MAX_LL], ElectronCand_hcaliso[MAX_LL];
+    Double_t ElectronCand_sigmaIetaIeta[MAX_LL];
+    Double_t ElectronCand_convDist[MAX_LL], ElectronCand_convDcot[MAX_LL];
+    Int_t ElectronCand_ecalDriven[MAX_LL];
+    Int_t ElectronCand_tightID[MAX_LL], ElectronCand_mediumID[MAX_LL], ElectronCand_looseID[MAX_LL];
 
     // Pair quantities
     Int_t Pair_candidates[MAX_PAIRS][2];
@@ -316,6 +299,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     Double_t Pair_mass[MAX_PAIRS], Pair_dphi[MAX_PAIRS];
     Double_t Pair_eta[MAX_PAIRS], Pair_phi[MAX_PAIRS], Pair_3Dangle[MAX_PAIRS], Pair_Y[MAX_PAIRS];
     Double_t PairGamma_mass[MAX_PAIRS][MAX_PHO];
+
     // Extra tracks
     Int_t Pair_extratracks1mm[MAX_PAIRS], Pair_extratracks2mm[MAX_PAIRS];
     Int_t Pair_extratracks3mm[MAX_PAIRS], Pair_extratracks4mm[MAX_PAIRS];
@@ -350,14 +334,6 @@ class GammaGammaEE : public edm::EDAnalyzer {
     Double_t ExtraTrack_x[MAX_ET], ExtraTrack_y[MAX_ET], ExtraTrack_z[MAX_ET];
     Double_t ClosestExtraTrack_vtxdxyz, ClosestHighPurityExtraTrack_vtxdxyz, ClosestTrack_vtxdxyz;
     Int_t nQualityExtraTrack;
-
-    // Jets/MET quantities
-    int nJetCand;
-    Double_t JetCand_px[MAX_JETS], JetCand_py[MAX_JETS], JetCand_pz[MAX_JETS];
-    Double_t JetCand_e[MAX_JETS], JetCand_eta[MAX_JETS], JetCand_phi[MAX_JETS];
-    Double_t HighestJet_e, HighestJet_eta, HighestJet_phi;
-    Double_t SumJet_e;
-    Double_t Etmiss, Etmiss_phi, Etmiss_x, Etmiss_y, Etmiss_z, Etmiss_significance;
 
     TFile* file;
     TTree* tree;
