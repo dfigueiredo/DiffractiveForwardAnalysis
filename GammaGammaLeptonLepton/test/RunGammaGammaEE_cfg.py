@@ -14,7 +14,7 @@ process.options   = cms.untracked.PSet(
     SkipEvent = cms.untracked.vstring('ProductNotFound')
 )
 
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(5000) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
 #process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000) )
 #process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
@@ -25,7 +25,8 @@ process.source = cms.Source("PoolSource",
     fileNames = cms.untracked.vstring(
 '/store/data/Run2016C/SingleElectron/AOD/PromptReco-v2/000/275/657/00000/086DD2F4-903B-E611-AB5B-02163E014279.root'
 #'/store/data/Run2016C/DoubleMuon/AOD/PromptReco-v2/000/275/657/00000/16858380-6F3B-E611-AE0A-02163E0118AD.root',
-#'/store/mc/RunIISpring16DR80/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/AODSIM/PUFlat0to50_80X_mcRun2_asymptotic_2016_v3-v1/20000/000CB19C-6CF2-E511-8F52-001517F7F510.root',
+#'/store/mc/RunIISpring16DR80/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-madgraphMLM-pythia8/AODSIM/PUFlat0to50_80X_mcRun2_asymptotic_2016_v3-v1/20000/000CB19C-6CF2-E511-8F52-001517F7F510.root'
+#'/store/user/dmf/SamplesDebugCMSSW8012/DYJetsToLL_M-50_TuneCUETP8M1_13TeV-madgraphMLM-pythia8-AODSIM-PUSpring16_80X_mcRun2.root'
     ),
 #    firstEvent = cms.untracked.uint32(1)
 )
@@ -101,8 +102,6 @@ process.ggee.LeptonsType = cms.vstring('Electron')
 process.ggee.RecoVertexLabel = cms.InputTag("offlinePrimaryVertices")
 process.ggee.RunOnMC = cms.untracked.bool(runOnMC)
 process.ggee.RunOnProtons = cms.untracked.bool(runOnProtons)
-process.ggee.outfilename = cms.untracked.string('output_electron_rp_test.root')
-
 
 #########################
 #       Protons         #
@@ -114,13 +113,22 @@ process.ggee.outfilename = cms.untracked.string('output_electron_rp_test.root')
 # local RP reconstruction chain with standard settings
 process.load("RecoCTPPS.Configuration.recoCTPPS_cff")
 
-process.p = cms.Path(
-     process.patDefaultSequence+
-#    getattr(process,"patPF2PATSequence"+postfix)+
-    process.hltFilter +
-#    process.patDefaultSequence+
-#    process.recoCTPPS + 
-    process.ggee
-)
+process.TFileService = cms.Service("TFileService", fileName = cms.string("output_rp.root"))
+
+if not runOnMC:
+	process.p = cms.Path(
+	     process.patDefaultSequence+
+	#    getattr(process,"patPF2PATSequence"+postfix)+
+	    process.hltFilter +
+	#    process.patDefaultSequence+
+	#    process.recoCTPPS + 
+	    process.ggee
+	)
+else:
+        process.p = cms.Path(
+             process.patDefaultSequence+
+            process.ggee
+        )
+
 
 #print process.dumpPython()

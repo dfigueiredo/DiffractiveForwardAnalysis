@@ -52,8 +52,6 @@ GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig):
   //now do what ever initialization is needed
   _fetchElectrons = true;
 
-  outputFile_ = iConfig.getUntrackedParameter<std::string>("outfilename", "output.root");
-
   hltMenuLabel_ = iConfig.getParameter<std::string>("HLTMenuLabel");
   triggersList_ = iConfig.getParameter<std::vector<std::string> >("TriggersList");
   _hlts = new HLTmatches(triggersList_);
@@ -85,11 +83,12 @@ GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig):
   printCandidates_ = iConfig.getUntrackedParameter<bool>("PrintCandidates", false);
   trackLabel_ = iConfig.getUntrackedParameter<edm::InputTag>("TrackCollectionLabel", std::string("generalTracks"));
 
-  file = new TFile(outputFile_.c_str(), "recreate");
-  file->cd();
+  //edm::Service<TFileService> file;
+  //file = new TFile(outputFile_.c_str(), "recreate");
+  //file->cd();
 
   // Tree definition
-  tree = new TTree("ntp1", "ntp1");
+  //tree = new TTree("ntp1", "ntp1");
 
   // PU reweighting
   if (runOnMC_) {
@@ -110,11 +109,11 @@ GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig):
 GammaGammaEE::~GammaGammaEE()
 {
 
-  file->Write();
-  file->Close();
+  //file->Write();
+  //file->Close();
 
   delete _hlts;
-  delete tree;
+  //delete tree;
 
 }
 
@@ -559,6 +558,10 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   void 
 GammaGammaEE::beginJob()
 {
+
+  edm::Service<TFileService> file;
+  tree = file->make<TTree>("ntp1", "ntp1");
+
   tree->Branch("Run", &Run, "Run/I");
   tree->Branch("LumiSection", &LumiSection, "LumiSection/I");
   tree->Branch("BX", &BX, "BX/I");
@@ -739,6 +742,7 @@ GammaGammaEE::endJob()
   void 
 GammaGammaEE::beginRun(edm::Run const& iRun, edm::EventSetup const& iSetup)
 {
+
   bool changed;
   std::string triggerName_;
 

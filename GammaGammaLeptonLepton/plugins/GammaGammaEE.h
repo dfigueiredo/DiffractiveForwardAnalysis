@@ -13,6 +13,8 @@
 #include "FWCore/Framework/interface/MakerMacros.h"
 #include "FWCore/ParameterSet/interface/ParameterSet.h"
 #include "FWCore/ParameterSet/interface/Registry.h"
+#include "FWCore/ServiceRegistry/interface/Service.h"
+#include "CommonTools/UtilAlgos/interface/TFileService.h"
 
 // HLT information
 #include "DataFormats/Common/interface/TriggerResults.h"
@@ -142,7 +144,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     bool istight;
 
     // Input tags
-    std::string hltMenuLabel_, outputFile_;
+    std::string hltMenuLabel_;
     std::vector<std::string> triggersList_, leptonsType_;
     edm::InputTag beamSpotLabel_, recoVertexLabel_;
     edm::InputTag genLabel_, muonLabel_, trackLabel_, conversions_;
@@ -335,7 +337,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     Double_t ClosestExtraTrack_vtxdxyz, ClosestHighPurityExtraTrack_vtxdxyz, ClosestTrack_vtxdxyz;
     Int_t nQualityExtraTrack;
 
-    TFile* file;
+    //TFile* file;
     TTree* tree;
 
 };
