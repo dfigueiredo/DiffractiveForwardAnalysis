@@ -87,19 +87,20 @@
 #include <TTree.h>
 #include <TVector3.h>
 #include <TLorentzVector.h>
+#include <map>
 
-#define MAX_HLT    10 // Maximum number of HLT to check
-#define MAX_LL     50 // Maximum number of leptons per event
-#define MAX_ELECTRONS  25 // Maximum number of muons per event
-#define MAX_ELE    25 // Maximum number of electrons per event
+#define MAX_HLT    2 // Maximum number of HLT to check
+#define MAX_LL     3 // Maximum number of leptons per event
+#define MAX_ELECTRONS  3 // Maximum number of muons per event
+#define MAX_ELE    3 // Maximum number of electrons per event
 #define MAX_PHO    50 // Maximum number of photons per event
 #define MAX_PAIRS  1 // Maximum number of leptons pairs per event
 #define MAX_VTX    100 // Maximum number of primary vertices per event
 #define MAX_ET     5000// Maximum number of extra tracks per event
-#define MAX_GENMU  25 // Maximum number of generator level muons per event
-#define MAX_GENELE 25 // Maximum number of generator level electrons per event
-#define MAX_GENPHO 10 // Maximum number of generator level photons per event
-#define MAX_JETS   30 // Maximum nulber of jets per event
+#define MAX_GENMU  3 // Maximum number of generator level muons per event
+#define MAX_GENELE 3 // Maximum number of generator level electrons per event
+#define MAX_GENPHO 3 // Maximum number of generator level photons per event
+#define MAX_JETS   3 // Maximum nulber of jets per event
 #define MAX_GENPRO 10 // Maximum number of generated protons
 #define MAX_LOCALPCAND 10 // Maximum number of reconstructed local tracks in RPs
 #define MASS_MU 0.1057
@@ -153,6 +154,7 @@ class GammaGammaEE : public edm::EDAnalyzer {
     edm::EDGetTokenT< edm::ValueMap<bool> > eleLooseIdMap_;
     edm::EDGetTokenT< edm::ValueMap<bool> > eleMediumIdMap_;
     edm::EDGetTokenT< edm::ValueMap<bool> > eleTightIdMap_;
+    edm::EDGetToken electronsTokenGsf_;
 
     edm::InputTag conversionsLabel_, rhoIsoLabel_;
     edm::InputTag pileupLabel_;

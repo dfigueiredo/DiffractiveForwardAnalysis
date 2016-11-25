@@ -41,6 +41,7 @@ const float cut_EE_HoverE        = 0.025;
 //
 // constructors and destructor
 //
+//
 GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig):
   // Electron Map
   eleToken_           (consumes< edm::View<pat::Electron> >       (iConfig.getUntrackedParameter<edm::InputTag>("GlobalEleCollectionLabel", std::string("gsfElectrons")))),
@@ -83,13 +84,6 @@ GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig):
   printCandidates_ = iConfig.getUntrackedParameter<bool>("PrintCandidates", false);
   trackLabel_ = iConfig.getUntrackedParameter<edm::InputTag>("TrackCollectionLabel", std::string("generalTracks"));
 
-  //edm::Service<TFileService> file;
-  //file = new TFile(outputFile_.c_str(), "recreate");
-  //file->cd();
-
-  // Tree definition
-  //tree = new TTree("ntp1", "ntp1");
-
   // PU reweighting
   if (runOnMC_) {
     LumiWeights = new edm::LumiReWeighting(mcPileupFile_, dataPileupFile_, mcPileupPath_, dataPileupPath_);
@@ -102,6 +96,7 @@ GammaGammaEE::GammaGammaEE(const edm::ParameterSet& iConfig):
   consumes<std::vector<PileupSummaryInfo>>(edm::InputTag("addPileupInfo"));
   consumes<std::vector<reco::GenParticle>>(edm::InputTag("genParticles"));
   tokenRPLocalTrack = consumes< edm::DetSetVector<TotemRPLocalTrack> >(edm::InputTag("totemRPLocalTrackFitter"));
+  electronsTokenGsf_ = mayConsume<edm::View<reco::GsfElectron> >(iConfig.getParameter<edm::InputTag>("electronsGsf"));
 
 }
 
@@ -355,8 +350,6 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   // Get the electrons collection from the event
   if (_fetchElectrons) {
 
-    //iEvent.getByLabel(electronLabel_, electronColl);
-
     edm::Handle<edm::View<pat::Electron> > electronColl;
     iEvent.getByToken(eleToken_, electronColl);
 
@@ -368,6 +361,7 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
     edm::Handle<edm::ValueMap<bool> > tight_id_decisions;
     iEvent.getByToken(eleTightIdMap_, tight_id_decisions);
+
 
     for (unsigned int j=0; j<electronColl->size(); j++) {
       const auto electron = electronColl->ptrAt(j);
@@ -422,12 +416,42 @@ GammaGammaEE::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       ElectronCand_convDcot[nElectronCand] = fabs(electron->convDcot());
       ElectronCand_ecalDriven[nElectronCand] = electron->ecalDrivenSeed();
 
-      /*
-	 ElectronCand_looseID[nElectronCand] = (*loose_id_decisions)[electron];
-	 ElectronCand_mediumID[nElectronCand] = (*medium_id_decisions)[electron];
-	 ElectronCand_tightID[nElectronCand] = (*tight_id_decisions)[electron];
-	 */
+      std::cout << electron->full5x5_sigmaIetaIeta() << std::endl;
+      std::cout << electron->deltaEtaSuperClusterTrackAtVtx() << std::endl;
+      std::cout << electron->superCluster()->eta() << std::endl;
+      std::cout << electron->superCluster()->seed()->eta() << std::endl;
+      std::cout << electron->deltaPhiSuperClusterTrackAtVtx() << std::endl;
+      std::cout << electron->hadronicOverEm() << std::endl;
+      std::cout << electron->ecalEnergy() << std::endl;
+      std::cout << electron->eSuperClusterOverP() << std::endl;
 
+      std::cout << loose_id_decisions->idSize() << std::endl;
+      std::cout << medium_id_decisions->idSize() << std::endl;
+      std::cout << tight_id_decisions->idSize() << std::endl;
+      std::cout << loose_id_decisions->size() << std::endl;
+      std::cout << medium_id_decisions->size() << std::endl;
+      std::cout << tight_id_decisions->size() << std::endl;
+      //(*loose_id_decisions)[electron];
+
+
+
+      //std::cout << "ID: " << looseId << std::endl;
+
+
+      //ElectronCand_looseID[nElectronCand] = (*loose_id_decisions)[electron];
+      //ElectronCand_mediumID[nElectronCand] = (*medium_id_decisions)[electron];
+      //ElectronCand_tightID[nElectronCand] = (*tight_id_decisions)[electron];
+
+
+
+      /*
+	 WORKING USING PAT METHODS
+	 if( electron->electronID("eidLoose")>0) std::cout << "--> eidLoose" << std::endl; 
+	 if( electron->electronID("eidRobustLoose")>0) std::cout << "--> eidRobustLoose" << std::endl; 
+	 if( electron->electronID("eidRobustTight")>0) std::cout << "--> eidRobustTight" << std::endl; 
+	 if( electron->electronID("eidTight")>0) std::cout << "--> eidTight" << std::endl; 
+	 if( electron->electronID("eidRobustHighEnergy")>0) std::cout << "--> eidRobustHighEnergy" << std::endl; 
+	 */
       nElectronCand++;
 
     }
@@ -597,11 +621,6 @@ GammaGammaEE::beginJob()
     tree->Branch("ElectronCand_convDist", ElectronCand_convDist, "ElectronCand_convDist[nElectronCand]/D"); 
     tree->Branch("ElectronCand_convDcot", ElectronCand_convDcot, "ElectronCand_convDcot[nElectronCand]/D"); 
     tree->Branch("ElectronCand_ecalDriven", ElectronCand_ecalDriven, "ElectronCand_ecalDriven[nElectronCand]/D"); 
-    /*
-       tree->Branch("ElectronCand_tightID", ElectronCand_tightID, "ElectronCand_tightID[nElectronCand]/D"); 
-       tree->Branch("ElectronCand_mediumID", ElectronCand_mediumID, "ElectronCand_mediumID[nElectronCand]/D"); 
-       tree->Branch("ElectronCand_looseID", ElectronCand_looseID, "ElectronCand_looseID[nElectronCand]/D");  
-       */
     if (runOnMC_) {
       tree->Branch("nGenElectronCand", &nGenElectronCand, "nGenElectronCand/I");
       tree->Branch("nGenElectronCandOutOfAccept", &nGenElectronCandOutOfAccept, "nGenElectronCandOutOfAccept/I");    

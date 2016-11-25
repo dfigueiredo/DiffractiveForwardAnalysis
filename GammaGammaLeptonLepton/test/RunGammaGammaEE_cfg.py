@@ -14,7 +14,7 @@ process.options   = cms.untracked.PSet(
     SkipEvent = cms.untracked.vstring('ProductNotFound')
 )
 
-process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(-1) )
+process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(500) )
 #process.maxEvents = cms.untracked.PSet( input = cms.untracked.int32(1000) )
 #process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
@@ -87,10 +87,14 @@ process.out = cms.OutputModule("PoolOutputModule",
         'keep *_offlinePrimaryVertices*_*_*',
         'keep *_*Muons*_*_*',
         'keep *_*Electrons*_*_*',
+        'keep *_Electrons*_*_*',
+        'keep *_patElectrons*_*_*',
         'keep *_selectedPatElectrons*_*_*',
+        'keep *_gedGsfElectrons*_*_*',
         'keep recoPFCandidates_particleFlow_*_*',
     ),
 )
+
 
 
 #########################
@@ -112,21 +116,38 @@ process.ggee.RunOnProtons = cms.untracked.bool(runOnProtons)
 
 # local RP reconstruction chain with standard settings
 process.load("RecoCTPPS.Configuration.recoCTPPS_cff")
-
 process.TFileService = cms.Service("TFileService", fileName = cms.string("output_rp.root"))
+
+#########################
+#      Electron ID      #
+#########################
+
+from PhysicsTools.SelectorUtils.tools.vid_id_tools import *
+switchOnVIDElectronIdProducer(process, DataFormat.AOD)
+
+my_id_modules = ['RecoEgamma.ElectronIdentification.Identification.cutBasedElectronID_Spring15_25ns_V1_cff',
+                 'RecoEgamma.ElectronIdentification.Identification.heepElectronID_HEEPV60_cff']
+
+for idmod in my_id_modules:
+     setupAllVIDIdsInModule(process,idmod,setupVIDElectronSelection)
+
 
 if not runOnMC:
 	process.p = cms.Path(
-	     process.patDefaultSequence+
-	#    getattr(process,"patPF2PATSequence"+postfix)+
-	    process.hltFilter +
-	#    process.patDefaultSequence+
+            process.egmGsfElectronIDSequence*
+            #process.egmGsfElectronIDs*
+	    process.patDefaultSequence*
+            #process.egmGsfElectronIDSequence *
+	    process.hltFilter *
 	#    process.recoCTPPS + 
 	    process.ggee
 	)
 else:
         process.p = cms.Path(
-             process.patDefaultSequence+
+            process.egmGsfElectronIDSequence*
+            #process.egmGsfElectronIDs*
+            process.patDefaultSequence*
+            #process.egmGsfElectronIDSequence*
             process.ggee
         )
 
